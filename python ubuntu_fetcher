@@ -1,0 +1,73 @@
+import requests
+import os
+from urllib.parse import urlparse
+import hashlib
+
+def fetch_image(url):
+    """
+    Fetch and save an image from the web into Fetched_Images directory.
+    Handles errors gracefully and prevents duplicate downloads.
+    """
+
+    try:
+        # Ensure the directory exists
+        save_dir = "Fetched_Images"
+        os.makedirs(save_dir, exist_ok=True)
+
+        # Send request
+        response = requests.get(url, timeout=10, stream=True)
+        response.raise_for_status()  # Handle bad HTTP codes
+
+        # Check content type (must be an image)
+        content_type = response.headers.get("Content-Type", "")
+        if not content_type.startswith("image/"):
+            print(f"✗ Skipping: URL does not point to an image ({content_type})")
+            return
+
+        # Extract filename from URL or generate one
+        parsed_url = urlparse(url)
+        filename = os.path.basename(parsed_url.path)
+
+        if not filename:  # If URL has no filename, create one
+            extension = content_type.split("/")[-1] or "jpg"
+            filename = f"downloaded_image.{extension}"
+
+        filepath = os.path.join(save_dir, filename)
+
+        # Prevent duplicate downloads (hash check)
+        file_hash = hashlib.md5(response.content).hexdigest()
+        for existing_file in os.listdir(save_dir):
+            existing_path = os.path.join(save_dir, existing_file)
+            with open(existing_path, "rb") as ef:
+                if hashlib.md5(ef.read()).hexdigest() == file_hash:
+                    print(f"✓ Duplicate found, skipping: {filename}")
+                    return
+
+        # Save image
+        with open(filepath, "wb") as f:
+            f.write(response.content)
+
+        print(f"✓ Successfully fetched: {filename}")
+        print(f"✓ Image saved to {filepath}")
+
+    except requests.exceptions.RequestException as e:
+        print(f"✗ Connection error: {e}")
+    except Exception as e:
+        print(f"✗ An error occurred: {e}")
+
+
+def main():
+    print("Welcome to the Ubuntu Image Fetcher")
+    print("A tool for mindfully collecting images from the web\n")
+
+    # Accept multiple URLs (comma-separated)
+    urls = input("Please enter one or more image URLs (comma-separated): ").split(",")
+
+    for url in urls:
+        fetch_image(url.strip())
+
+    print("\nConnection strengthened. Community enriched.")
+
+
+if __name__ == "__main__":
+    main()
